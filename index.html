@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>第一身虛擬導覽</title>
+    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 覆蓋層樣式 - 用於顯示資訊卡片 */
+        #info-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 999;
+            display: none;
+            pointer-events: auto;
+        }
+        
+        /* UI 按鈕樣式 */
+        .ui-layer {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            z-index: 100;
+        }
+
+        /* 自定義滑鼠樣式，讓用戶知道可以拖曳 */
+        a-scene {
+            cursor: grab;
+        }
+        a-scene:active {
+            cursor: grabbing;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- UI 層：控制按鈕 -->
+    <div class="ui-layer space-y-2">
+        <a href="index.html" class="block bg-white/90 hover:bg-white text-gray-800 px-4 py-2 rounded-lg font-bold shadow-lg transition">
+            🔙 返回主頁
+        </a>
+        <div class="bg-black/50 text-white px-4 py-2 rounded-lg text-sm backdrop-blur-sm">
+            <p>🖱️ 拖曳畫面觀看四周</p>
+            <p>🔴 點擊紅點查看資訊</p>
+            <p>🔵 點擊藍點切換場景</p>
+        </div>
+    </div>
+
+    <!-- 資訊彈出卡片 -->
+    <div id="info-overlay" class="w-full max-w-sm">
+        <div class="bg-white rounded-2xl shadow-2xl overflow-hidden transform transition-all scale-100 border-2 border-indigo-100">
+            <div class="bg-indigo-600 p-4 flex justify-between items-center">
+                <h3 id="info-title" class="text-white font-bold text-lg">標題</h3>
+                <button onclick="closeInfo()" class="text-white hover:bg-indigo-500 rounded-full p-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="p-6">
+                <p id="info-desc" class="text-gray-600 leading-relaxed mb-4">這裡是詳細介紹...</p>
+                <img id="info-img" src="" class="w-full h-40 object-cover rounded-lg hidden" alt="Detail">
+            </div>
+        </div>
+    </div>
+
+    <!-- A-Frame 3D 場景 -->
+    <!-- raycaster="objects: .clickable" 確保只有帶有 clickable class 的物件能被點擊 -->
+    <a-scene cursor="rayOrigin: mouse" raycaster="objects: .clickable" loading-screen="dotsColor: white; backgroundColor: #1e1e2e">
+        
+        <!-- 資源預加載 -->
+        <a-assets>
+            <!-- 這裡使用佔位圖片，實際使用時請換成你的 360 照片 -->
+            <img id="sky-lobby" src="https://live.staticflickr.com/65535/49046666202_27775f9307_k.jpg" crossorigin="anonymous">
+            <img id="sky-garden" src="https://live.staticflickr.com/65535/52473799397_44092e70c6_k.jpg" crossorigin="anonymous">
+        </a-assets>
+
+        <!-- 360 全景背景球體 -->
+        <a-sky id="main-sky" src="#sky-lobby" rotation="0 -130 0" animation__fade="property: material.opacity; from: 0; to: 1; dur: 1500; startEvents: fadein"></a-sky>
+
+        <!-- 攝像機 (用戶視角) -->
+        <a-entity camera look-controls="reverseMouseDrag: true" position="0 1.6 0"></a-entity>
+
+        <!-- 場景容器：我們會用 JS 動態生成裡面的熱點 -->
+        <a-entity id="scene-container"></a-entity>
+
+    </a-scene>
+
+    <script>
+        // --- 導覽數據 ---
+        const tourData = {
+            "lobby": {
+                bg: "#sky-lobby",
+                rotation: "0 -130 0",
+                hotspots: [
+                    {
+                        type: "info",
+                        position: "-4 1 -5",
+                        color: "#ef4444", // Red
+                        title: "🏫 學校大堂",
+                        desc: "這是我們學校的主入口，建於 1985 年。大堂正中央的校徽象徵著我們要像獅子一樣勇敢。",
+                        image: "https://placehold.co/600x400/orange/white?text=Lobby+Photo"
+                    },
+                    {
+                        type: "info",
+                        position: "5 2 -3",
+                        color: "#ef4444",
+                        title: "🏆 獎盃櫃",
+                        desc: "這裡展示了我們學校在各項校際比賽中獲得的榮譽，包括去年的全港朗誦冠軍！"
+                    },
+                    {
+                        type: "scene",
+                        position: "8 1 2", 
+                        color: "#3b82f6", // Blue
+                        target: "garden",
+                        title: "前往：生態花園 🌿",
+                        desc: "點擊傳送到戶外花園。"
+                    }
+                ]
+            },
+            "garden": {
+                bg: "#sky-garden",
+                rotation: "0 45 0",
+                hotspots: [
+                    {
+                        type: "info",
+                        position: "-2 1 -3",
+                        color: "#ef4444",
+                        title: "🐢 烏龜池",
+                        desc: "這裡住著三隻烏龜：大寶、二寶和小寶。請不要餵食牠們喔！"
+                    },
+                    {
+                        type: "scene",
+                        position: "-5 1 4",
+                        color: "#3b82f6",
+                        target: "lobby",
+                        title: "返回：學校大堂 🏫",
+                        desc: "點擊返回室內。"
+                    }
+                ]
+            }
+        };
+
+        // --- 狀態變數 ---
+        let currentSceneId = 'lobby';
+
+        // --- 初始化 ---
+        window.onload = function() {
+            loadScene('lobby');
+        };
+
+        // --- 載入場景函數 ---
+        function loadScene(sceneId) {
+            const data = tourData[sceneId];
+            const sky = document.querySelector('#main-sky');
+            const container = document.querySelector('#scene-container');
+
+            // 1. 淡出效果 (簡單模擬：先變黑再變圖)
+            // 在實際應用中，我們通常會做一個黑色球體淡入淡出
+            
+            // 2. 換圖
+            sky.setAttribute('src', data.bg);
+            if(data.rotation) sky.setAttribute('rotation', data.rotation);
+
+            // 3. 清空舊熱點
+            container.innerHTML = '';
+
+            // 4. 生成新熱點
+            data.hotspots.forEach(spot => {
+                const entity = document.createElement('a-entity');
+                
+                // 設定外觀 (球體 + 動畫)
+                entity.setAttribute('geometry', 'primitive: sphere; radius: 0.3');
+                entity.setAttribute('material', `color: ${spot.color}; opacity: 0.9; shader: flat`);
+                entity.setAttribute('position', spot.position);
+                
+                // 加入 "clickable" class 讓 raycaster 偵測到
+                entity.setAttribute('class', 'clickable');
+
+                // 加入懸浮動畫 (上下浮動)
+                entity.setAttribute('animation', 'property: position; to: ' + adjustY(spot.position, 0.2) + '; dir: alternate; dur: 2000; loop: true');
+                
+                // 加入放大動畫 (滑鼠懸停時)
+                entity.setAttribute('animation__scale', 'property: scale; to: 1.2 1.2 1.2; dur: 200; startEvents: mouseenter');
+                entity.setAttribute('animation__scale_back', 'property: scale; to: 1 1 1; dur: 200; startEvents: mouseleave');
+
+                // 點擊事件
+                entity.addEventListener('click', () => {
+                    if (spot.type === 'info') {
+                        showInfo(spot.title, spot.desc, spot.image);
+                    } else if (spot.type === 'scene') {
+                        loadScene(spot.target);
+                    }
+                });
+
+                // 增加一個文字標籤在熱點上方
+                const text = document.createElement('a-text');
+                text.setAttribute('value', spot.title);
+                text.setAttribute('align', 'center');
+                text.setAttribute('position', '0 0.5 0');
+                text.setAttribute('scale', '1.5 1.5 1.5');
+                text.setAttribute('side', 'double'); // 雙面可見
+                // 讓文字永遠面向攝像機 (billboard效果 - 簡化版)
+                text.setAttribute('look-at', '[camera]'); 
+                
+                entity.appendChild(text);
+                container.appendChild(entity);
+            });
+        }
+
+        // --- 輔助函數：調整 Y 軸座標 ---
+        function adjustY(posStr, amount) {
+            const parts = posStr.split(' ').map(Number);
+            return `${parts[0]} ${parts[1] + amount} ${parts[2]}`;
+        }
+
+        // --- UI 邏輯 ---
+        function showInfo(title, desc, imgSrc) {
+            const overlay = document.getElementById('info-overlay');
+            const t = document.getElementById('info-title');
+            const d = document.getElementById('info-desc');
+            const img = document.getElementById('info-img');
+
+            t.textContent = title;
+            d.textContent = desc;
+            
+            if (imgSrc) {
+                img.src = imgSrc;
+                img.classList.remove('hidden');
+            } else {
+                img.classList.add('hidden');
+            }
+
+            overlay.style.display = 'block';
+        }
+
+        function closeInfo() {
+            document.getElementById('info-overlay').style.display = 'none';
+        }
+    </script>
+</body>
+</html>
