@@ -30,17 +30,19 @@
       <a-assets>
         <!-- The uploaded image id="my-photo" -->
         <!-- Note: In a real deployment, you'd upload the file relative to this HTML file -->
-        <img id="my-photo" src="vr1.jpg" crossorigin="anonymous">
+        <img id="my-photo" src="vr.jpg" crossorigin="anonymous">
       </a-assets>
 
       <!-- The Image Plane (Virtual Screen) -->
       <!-- position="x y z" -> x:left/right, y:up/down, z:forward/back (negative is in front) -->
-      <a-image src="#my-photo" 
+      <!-- Using a-plane for explicit geometry control. Added color to debug visibility if texture fails -->
+      <a-plane src="#my-photo" 
                position="0 1.6 -2" 
                width="3" 
                height="2"
-               material="shader: flat; side: double">
-      </a-image>
+               material="shader: flat; side: double"
+               color="#CCC">
+      </a-plane>
 
       <!-- Background (Sky) -->
       <!-- A simple dark background to focus on the photo -->
@@ -65,6 +67,14 @@
         document.querySelector('a-scene').addEventListener('enter-vr', function () {
             console.log("Entering VR Mode");
         });
+        
+        // Check if image loaded
+        document.querySelector('#my-photo').onload = function() {
+            console.log("Image loaded successfully");
+        };
+        document.querySelector('#my-photo').onerror = function() {
+            console.error("Error loading image. Check filename and path.");
+        };
     </script>
   </body>
 </html>
